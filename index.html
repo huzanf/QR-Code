@@ -28,6 +28,8 @@
   button { font:inherit; font-weight:600; padding:10px 16px; border-radius:8px; border:1px solid var(--accent); background:var(--accent); color:#fff; cursor:pointer; }
   button.secondary { background:#fff; color:var(--accent); }
   button:disabled { opacity:.5; cursor:not-allowed; }
+  [hidden] { display:none !important; }
+  pre { background:#f0f1f4; padding:8px 10px; border-radius:8px; overflow-x:auto; font-size:.8rem; margin:6px 0 0; }
   #err { color:#b91c1c; font-size:.85rem; min-height:1.2em; }
 </style>
 </head>
@@ -36,8 +38,27 @@
   <h1>Custom QR Code Maker</h1>
   <div class="grid">
     <section class="card">
-      <label for="url">URL</label>
-      <input id="url" type="url" placeholder="https://example.com" value="https://example.com">
+      <label for="mode">Link type</label>
+      <select id="mode">
+        <option value="direct">Direct (QR contains the URL; can't be changed later)</option>
+        <option value="redirect">Redirectable (change the destination any time)</option>
+      </select>
+
+      <div id="directBox">
+        <label for="url">URL</label>
+        <input id="url" type="url" placeholder="https://example.com" value="https://example.com">
+      </div>
+
+      <div id="redirectBox" hidden>
+        <label for="site">Your deployed site address</label>
+        <input id="site" type="url" placeholder="https://yourapp.vercel.app">
+        <label for="slug">Short name for this QR code</label>
+        <input id="slug" type="text" placeholder="menu" pattern="[a-z0-9-]+">
+        <label for="dest">Destination URL</label>
+        <input id="dest" type="url" placeholder="https://example.com/menu">
+        <div class="hint">Add this line to <code>links.json</code> and push to publish or later change it:</div>
+        <pre id="snippet"></pre>
+      </div>
 
       <label for="logo">Your custom design (logo shown in the center)</label>
       <input id="logo" type="file" accept="image/*">
@@ -101,14 +122,36 @@ function isValidUrl(s) {
   catch { return false; }
 }
 
+function redirectData() {
+  const site = $("site").value.trim().replace(/\/+$/, "");
+  const slug = $("slug").value.trim();
+  const dest = $("dest").value.trim();
+  const slugOk = /^[a-z0-9-]+$/.test(slug);
+  $("snippet").textContent = slugOk ? `"${slug}": "${dest || "https://..."}",` : "";
+  if (site && !isValidUrl(site)) return { error: "Site address must start with http:// or https://" };
+  if (slug && !slugOk) return { error: "Short name: lowercase letters, numbers and dashes only" };
+  if (dest && !isValidUrl(dest)) return { error: "Destination must start with http:// or https://" };
+  if (!site || !slugOk || !dest) return { error: "" };
+  return { data: `${site}/go/?c=${slug}` };
+}
+
 function update() {
-  const url = $("url").value.trim();
-  const ok = isValidUrl(url);
-  $("err").textContent = url && !ok ? "Enter a full URL starting with http:// or https://" : "";
-  $("png").disabled = $("svg").disabled = !ok;
-  if (!ok) return;
+  const redirect = $("mode").value === "redirect";
+  $("directBox").hidden = redirect;
+  $("redirectBox").hidden = !redirect;
+  let data, error = "";
+  if (redirect) {
+    ({ data, error } = redirectData());
+  } else {
+    const url = $("url").value.trim();
+    if (isValidUrl(url)) data = url;
+    else if (url) error = "Enter a full URL starting with http:// or https://";
+  }
+  $("err").textContent = error || "";
+  $("png").disabled = $("svg").disabled = !data;
+  if (!data) return;
   qr.update({
-    data: url,
+    data,
     image: logoData || undefined,
     dotsOptions: { color: $("fg").value, type: $("dots").value },
     backgroundOptions: { color: $("bg").value },
@@ -128,7 +171,7 @@ $("logo").addEventListener("change", e => {
 $("clearLogo").addEventListener("click", e => {
   e.preventDefault(); logoData = ""; $("logo").value = ""; update();
 });
-["url","fg","bg","dots","corners","logoSize"].forEach(id => $(id).addEventListener("input", update));
+["mode","url","site","slug","dest","fg","bg","dots","corners","logoSize"].forEach(id => $(id).addEventListener("input", update));
 $("png").onclick = () => qr.download({ name: "qr-code", extension: "png" });
 $("svg").onclick = () => qr.download({ name: "qr-code", extension: "svg" });
 update();
