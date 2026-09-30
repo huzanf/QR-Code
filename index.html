@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Custom QR Code Maker</title>
+<script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.6.0-rc.1/lib/qr-code-styling.js"></script>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --text:#1c1e21; --muted:#6b7280; --accent:#4f46e5; --border:#d8dbe0; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:16px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width:900px; margin:0 auto; padding:24px 16px; }
+  h1 { margin:0 0 16px; font-size:1.6rem; }
+  .grid { display:grid; grid-template-columns:1fr 340px; gap:20px; }
+  @media (max-width:760px) { .grid { grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; }
+  label { display:block; font-weight:600; font-size:.9rem; margin:14px 0 4px; }
+  label:first-child { margin-top:0; }
+  input[type=url], input[type=text], select { width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font:inherit; }
+  input[type=color] { width:56px; height:36px; border:1px solid var(--border); border-radius:6px; padding:2px; background:#fff; }
+  input[type=range] { width:100%; }
+  .row { display:flex; gap:16px; flex-wrap:wrap; }
+  .row > div { flex:1; min-width:120px; }
+  .hint { color:var(--muted); font-size:.8rem; margin-top:4px; }
+  #preview { display:flex; flex-direction:column; align-items:center; gap:14px; }
+  #qr canvas, #qr svg { max-width:100%; height:auto; border-radius:8px; }
+  .btns { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  button { font:inherit; font-weight:600; padding:10px 16px; border-radius:8px; border:1px solid var(--accent); background:var(--accent); color:#fff; cursor:pointer; }
+  button.secondary { background:#fff; color:var(--accent); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  #err { color:#b91c1c; font-size:.85rem; min-height:1.2em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Custom QR Code Maker</h1>
+  <div class="grid">
+    <section class="card">
+      <label for="url">URL</label>
+      <input id="url" type="url" placeholder="https://example.com" value="https://example.com">
+
+      <label for="logo">Your custom design (logo shown in the center)</label>
+      <input id="logo" type="file" accept="image/*">
+      <div class="hint">PNG, JPG, or SVG. Stays on your device. <a href="#" id="clearLogo">Remove</a></div>
+
+      <label for="logoSize">Logo size</label>
+      <input id="logoSize" type="range" min="0.15" max="0.45" step="0.01" value="0.35">
+
+      <div class="row">
+        <div><label for="fg">Dot color</label><input id="fg" type="color" value="#1c1e21"></div>
+        <div><label for="bg">Background</label><input id="bg" type="color" value="#ffffff"></div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="dots">Dot style</label>
+          <select id="dots">
+            <option value="square">Square</option>
+            <option value="dots" selected>Round dots</option>
+            <option value="rounded">Rounded</option>
+            <option value="classy">Classy</option>
+            <option value="classy-rounded">Classy rounded</option>
+            <option value="extra-rounded">Extra rounded</option>
+          </select>
+        </div>
+        <div>
+          <label for="corners">Corner style</label>
+          <select id="corners">
+            <option value="square">Square</option>
+            <option value="extra-rounded" selected>Rounded</option>
+            <option value="dot">Dot</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="preview">
+      <div id="qr"></div>
+      <div id="err"></div>
+      <div class="btns">
+        <button id="png">Download PNG</button>
+        <button id="svg" class="secondary">Download SVG</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let logoData = "";
+
+const qr = new QRCodeStyling({
+  width: 300, height: 300, type: "canvas", margin: 10,
+  qrOptions: { errorCorrectionLevel: "H" }, // high redundancy so a center logo still scans
+  imageOptions: { crossOrigin: "anonymous", margin: 6, imageSize: 0.35 },
+});
+qr.append($("qr"));
+
+function isValidUrl(s) {
+  try { const u = new URL(s); return u.protocol === "http:" || u.protocol === "https:"; }
+  catch { return false; }
+}
+
+function update() {
+  const url = $("url").value.trim();
+  const ok = isValidUrl(url);
+  $("err").textContent = url && !ok ? "Enter a full URL starting with http:// or https://" : "";
+  $("png").disabled = $("svg").disabled = !ok;
+  if (!ok) return;
+  qr.update({
+    data: url,
+    image: logoData || undefined,
+    dotsOptions: { color: $("fg").value, type: $("dots").value },
+    backgroundOptions: { color: $("bg").value },
+    cornersSquareOptions: { color: $("fg").value, type: $("corners").value },
+    cornersDotOptions: { color: $("fg").value },
+    imageOptions: { crossOrigin: "anonymous", margin: 6, imageSize: parseFloat($("logoSize").value) },
+  });
+}
+
+$("logo").addEventListener("change", e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { logoData = r.result; update(); };
+  r.readAsDataURL(f);
+});
+$("clearLogo").addEventListener("click", e => {
+  e.preventDefault(); logoData = ""; $("logo").value = ""; update();
+});
+["url","fg","bg","dots","corners","logoSize"].forEach(id => $(id).addEventListener("input", update));
+$("png").onclick = () => qr.download({ name: "qr-code", extension: "png" });
+$("svg").onclick = () => qr.download({ name: "qr-code", extension: "svg" });
+update();
+</script>
+</body>
+</html>
