@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Redirecting…</title>
+<style>body{font:16px/1.5 system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;color:#1c1e21}</style>
+</head>
+<body>
+<p id="msg">Redirecting…</p>
+<script>
+// QR codes point at /go/?c=<slug>. The destination is looked up in ../links.json,
+// so changing a link means editing that file, not reprinting the QR code.
+(async () => {
+  const msg = document.getElementById("msg");
+  const slug = new URLSearchParams(location.search).get("c");
+  try {
+    const res = await fetch("../links.json", { cache: "no-store" });
+    const links = await res.json();
+    const dest = slug && Object.hasOwn(links, slug) ? links[slug] : null;
+    if (dest && /^https?:\/\//i.test(dest)) location.replace(dest);
+    else msg.textContent = "This link isn't set up.";
+  } catch {
+    msg.textContent = "Couldn't load this link. Please try again.";
+  }
+})();
+</script>
+</body>
+</html>
