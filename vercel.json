@@ -1,3 +1,6 @@
 {
-  "rewrites": [{ "source": "/go/:slug", "destination": "/go/index.html" }]
+  "rewrites": [
+    { "source": "/go/:slug", "destination": "/api/go?slug=:slug" },
+    { "source": "/go", "destination": "/api/go" }
+  ]
 }
