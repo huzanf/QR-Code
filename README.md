@@ -22,7 +22,12 @@ Choose **Redirectable** in the app. The QR code then points to `<your site>/go/<
 
 This needs the site deployed (Vercel, GitHub Pages, etc.) at an address you'll keep. Use a domain you own if the code must last.
 
-## Scan analytics
-Redirectable codes are counted with [Vercel Web Analytics](https://vercel.com/docs/analytics). Each code has its own path (`/go/<name>`), so the dashboard shows scans per code, plus country, device and time.
+## Scan analytics (like Bit.ly)
+Every scan of a redirectable code goes through `/go/<name>`, which records it and redirects. The stats page (`/stats.html`) shows, per code: total scans, last 7/30 days, a daily chart, devices (mobile/tablet/desktop), operating systems, browsers, countries, where the visitor came from, and the latest scans. Bots and link previews are not counted, and no IP addresses are stored.
 
-One-time setup: in the Vercel project, open **Analytics** and click **Enable**. Only redirectable codes are counted; direct codes never touch your site. Older `/go/?c=<name>` codes still redirect, but all appear under `/go/`.
+One-time setup in the Vercel project:
+1. **Storage** tab: add an **Upstash Redis** database (free tier is fine) and connect it to this project. This sets the connection environment variables automatically.
+2. **Settings > Environment Variables**: add `STATS_TOKEN` with a password of your choice. You type it on the stats page.
+3. Redeploy so the variables take effect.
+
+Direct (non-redirectable) codes can't be counted because they never touch your site.
