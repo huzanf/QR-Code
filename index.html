@@ -132,7 +132,7 @@ function redirectData() {
   if (slug && !slugOk) return { error: "Short name: lowercase letters, numbers and dashes only" };
   if (dest && !isValidUrl(dest)) return { error: "Destination must start with http:// or https://" };
   if (!site || !slugOk || !dest) return { error: "" };
-  return { data: `${site}/go/?c=${slug}` };
+  return { data: `${site}/go/${slug}` };
 }
 
 function update() {
