@@ -4,121 +4,84 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>QR Code Stats</title>
-<style>
-  :root { --bg:#f5f6f8; --card:#fff; --text:#1c1e21; --muted:#6b7280; --accent:#4f46e5; --border:#d8dbe0; --bar:#c7c9f5; }
-  * { box-sizing: border-box; }
-  body { margin:0; font:16px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--text); }
-  main { max-width:900px; margin:0 auto; padding:24px 16px; }
-  h1 { margin:0 0 4px; font-size:1.6rem; }
-  a { color:var(--accent); }
-  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; margin-top:16px; }
-  .head { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:baseline; }
-  .slug { font-weight:700; font-size:1.2rem; }
-  .dest { color:var(--muted); font-size:.85rem; word-break:break-all; }
-  .nums { display:flex; gap:24px; margin:12px 0; }
-  .num b { display:block; font-size:1.6rem; line-height:1.1; }
-  .num span { color:var(--muted); font-size:.8rem; }
-  .spark { display:flex; align-items:flex-end; gap:2px; height:60px; margin:8px 0 4px; }
-  .spark i { flex:1; background:var(--bar); min-height:2px; border-radius:2px 2px 0 0; }
-  .spark i.has { background:var(--accent); }
-  .axis { display:flex; justify-content:space-between; color:var(--muted); font-size:.75rem; }
-  .cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:16px; margin-top:16px; }
-  h3 { margin:0 0 6px; font-size:.85rem; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
-  .row { display:grid; grid-template-columns:1fr auto; font-size:.9rem; margin:2px 0; position:relative; padding:1px 4px; }
-  .row::before { content:""; position:absolute; inset:0; width:var(--pct); background:var(--bar); border-radius:4px; z-index:0; }
-  .row > * { position:relative; z-index:1; }
-  details { margin-top:14px; font-size:.85rem; color:var(--muted); }
-  summary { cursor:pointer; }
-  input, button { font:inherit; padding:10px; border-radius:8px; border:1px solid var(--border); }
-  button { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600; cursor:pointer; }
-  #msg { color:#b91c1c; min-height:1.4em; }
-  .empty { color:var(--muted); font-size:.9rem; }
-</style>
+<title>My QR Codes</title>
+<link rel="stylesheet" href="/app.css">
+<script src="/common.js"></script>
 </head>
 <body>
 <main>
-  <h1>QR Code Stats</h1>
-  <div><a href="/">&larr; Back to the QR maker</a></div>
+  <h1>My QR codes</h1>
+  <nav><a href="/">+ Create new QR code</a></nav>
 
   <form id="login" class="card">
-    <label for="pw"><b>Stats password</b></label><br>
-    <input id="pw" type="password" autocomplete="current-password" required>
-    <button type="submit">View stats</button>
-    <div id="msg"></div>
+    <label for="pw"><b>Admin password</b></label>
+    <input id="pw" type="password" autocomplete="current-password" required style="max-width:320px">
+    <button type="submit" style="margin-top:8px">Sign in</button>
+    <div id="msg" class="err"></div>
   </form>
 
-  <div id="out"></div>
+  <div id="app" hidden>
+    <section class="card">
+      <div id="list"></div>
+      <div class="btns" style="margin-top:12px"><button id="import" class="secondary" hidden>Import codes from links.json</button><span id="importMsg" class="ok"></span></div>
+    </section>
+
+    <section class="card">
+      <h2>Short link domains</h2>
+      <p class="hint" style="margin-top:0">Each code can use a different domain, such as <code>go.clientsite.com</code>. To use a domain: (1) add it to the Vercel project under <b>Settings → Domains</b>, (2) add the DNS record Vercel shows (usually a <code>CNAME</code> to <code>cname.vercel-dns.com</code>), (3) add it here.</p>
+      <div id="domains"></div>
+      <div class="copyrow" style="margin-top:10px"><input id="newDomain" type="text" placeholder="go.example.com"><button id="addDomain">Add domain</button></div>
+      <div id="domErr" class="err"></div>
+    </section>
+  </div>
 </main>
 
 <script>
-const $ = id => document.getElementById(id);
-const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+function fmtDate(s) { return s ? new Date(s).toLocaleDateString() : "–"; }
 
-function lastDays(days, n) {
-  const out = [];
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10);
-    out.push({ d, v: days[d] || 0 });
-  }
-  return out;
-}
-
-function breakdown(title, obj) {
-  const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const total = entries.reduce((s, e) => s + e[1], 0);
-  const rows = entries.map(([k, v]) =>
-    `<div class="row" style="--pct:${Math.round(v / total * 100)}%"><span>${esc(k)}</span><span>${v}</span></div>`).join("");
-  return `<div><h3>${title}</h3>${rows || '<div class="empty">No data yet</div>'}</div>`;
-}
-
-function render(codes) {
-  $("out").innerHTML = codes.map(c => {
-    const days = lastDays(c.days, 30);
-    const max = Math.max(1, ...days.map(x => x.v));
-    const last7 = days.slice(-7).reduce((s, x) => s + x.v, 0);
-    const last30 = days.reduce((s, x) => s + x.v, 0);
-    const bars = days.map(x => `<i class="${x.v ? "has" : ""}" style="height:${Math.round(x.v / max * 100)}%" title="${x.d}: ${x.v}"></i>`).join("");
-    const recent = c.recent.map(r =>
-      `<div>${esc(new Date(r.t).toLocaleString())} &middot; ${esc(r.device)} &middot; ${esc(r.os)} &middot; ${esc(r.browser)} &middot; ${esc(r.country)}</div>`).join("");
-    return `<section class="card">
-      <div class="head"><span class="slug">${esc(c.slug)}</span><span class="dest">&rarr; ${esc(c.destination)}</span></div>
-      <div class="nums">
-        <div class="num"><b>${c.total}</b><span>total scans</span></div>
-        <div class="num"><b>${last30}</b><span>last 30 days</span></div>
-        <div class="num"><b>${last7}</b><span>last 7 days</span></div>
-      </div>
-      <div class="spark">${bars}</div>
-      <div class="axis"><span>30 days ago</span><span>today</span></div>
-      <div class="cols">
-        ${breakdown("Devices", c.devices)}
-        ${breakdown("Operating system", c.os)}
-        ${breakdown("Browser", c.browsers)}
-        ${breakdown("Country", c.countries)}
-        ${breakdown("Came from", c.referrers)}
-      </div>
-      <details><summary>Latest scans</summary>${recent || "No scans yet"}</details>
-    </section>`;
-  }).join("") || '<p class="empty">No codes in links.json yet.</p>';
-}
-
-async function load(pw) {
+async function loadAll() {
   $("msg").textContent = "";
-  const res = await fetch("/api/stats", { headers: { Authorization: "Bearer " + pw } });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) { $("msg").textContent = body.error || "Couldn't load stats."; return false; }
-  $("login").hidden = true;
-  render(body.codes);
-  return true;
+  try {
+    const [l, d] = await Promise.all([api("/api/links"), api("/api/domains")]);
+    $("login").hidden = true; $("app").hidden = false;
+    renderLinks(l); renderDomains(d);
+    $("import").hidden = false;
+  } catch (e) {
+    $("app").hidden = true; $("login").hidden = false;
+    if (Auth.get()) $("msg").textContent = e.message;
+    Auth.clear();
+  }
 }
 
-$("login").addEventListener("submit", async e => {
-  e.preventDefault();
-  const pw = $("pw").value;
-  if (await load(pw)) { try { sessionStorage.setItem("statsPw", pw); } catch {} }
-});
+function renderLinks({ links }) {
+  if (!links.length) { $("list").innerHTML = '<p class="empty">No tracked QR codes yet. <a href="/">Create your first one</a>.</p>'; return; }
+  $("list").innerHTML = `<table><thead><tr><th>Code</th><th>Destination</th><th>Scans</th><th>Last scan</th><th></th></tr></thead><tbody>` +
+    links.map(l => `<tr>
+      <td><b>${esc(l.title || l.slug)}</b><br><a href="${esc(l.shortUrl)}" target="_blank" rel="noopener">${esc(l.shortUrl.replace(/^https?:\/\//, ""))}</a></td>
+      <td class="dest">${esc(l.dest)}</td><td>${l.total}</td><td>${esc(fmtDate(l.last))}</td>
+      <td><a class="btn secondary" href="/dashboard?l=${encodeURIComponent(l.id)}">Dashboard</a></td></tr>`).join("") + `</tbody></table>`;
+}
 
-try { const saved = sessionStorage.getItem("statsPw"); if (saved) load(saved).then(ok => { if (!ok) sessionStorage.removeItem("statsPw"); }); } catch {}
+function renderDomains({ primary, domains }) {
+  $("domains").innerHTML = `<div class="brow" style="--pct:0%"><span>${esc(primary)}</span><span class="hint">main address</span></div>` +
+    domains.map(h => `<div class="brow" style="--pct:0%"><span>${esc(h)}</span><button class="danger" data-rm="${esc(h)}" style="padding:2px 8px">Remove</button></div>`).join("");
+  document.querySelectorAll("[data-rm]").forEach(b => b.onclick = async () => {
+    if (!confirm(`Remove ${b.dataset.rm} from the list? Existing short links on it keep working.`)) return;
+    try { renderDomains(await api("/api/domains?host=" + encodeURIComponent(b.dataset.rm), { method: "DELETE" })); } catch (e) { $("domErr").textContent = e.message; }
+  });
+}
+
+$("login").addEventListener("submit", e => { e.preventDefault(); Auth.set($("pw").value); loadAll(); });
+$("addDomain").onclick = async () => {
+  $("domErr").textContent = "";
+  try { renderDomains(await api("/api/domains", { method: "POST", body: { host: $("newDomain").value } })); $("newDomain").value = ""; }
+  catch (e) { $("domErr").textContent = e.message; }
+};
+$("import").onclick = async () => {
+  try { const r = await api("/api/links", { method: "POST", body: { importLegacy: true } }); $("importMsg").textContent = `${r.imported} imported`; await loadAll(); }
+  catch (e) { $("importMsg").textContent = e.message; }
+};
+if (Auth.get()) loadAll();
 </script>
 </body>
 </html>

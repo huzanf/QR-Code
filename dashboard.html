@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>QR Code Dashboard</title>
+<link rel="stylesheet" href="/app.css">
+<script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.6.0-rc.1/lib/qr-code-styling.js"></script>
+<script src="/common.js"></script>
+<style>
+  .head { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:flex-start; }
+  .chart svg { width:100%; height:220px; display:block; }
+  .legend { display:flex; gap:16px; font-size:.8rem; color:var(--muted); margin-top:4px; }
+  .legend i { display:inline-block; width:18px; height:0; border-top:3px solid var(--accent); vertical-align:middle; margin-right:6px; }
+  .legend i.p { border-top:2px dashed #9ca3af; }
+  .tabs { display:flex; gap:6px; }
+  .tabs button { padding:5px 10px; font-size:.85rem; }
+  .log div { font-size:.85rem; padding:4px 0; border-bottom:1px solid var(--border); }
+</style>
+</head>
+<body>
+<main>
+  <nav><a href="/">Create new</a> <a id="listLink" href="/stats">My QR codes</a></nav>
+
+  <form id="login" class="card" hidden>
+    <label for="pw"><b>Admin password</b></label>
+    <input id="pw" type="password" autocomplete="current-password" required style="max-width:320px">
+    <button type="submit" style="margin-top:8px">View dashboard</button>
+  </form>
+  <div id="err" class="err"></div>
+
+  <div id="page" hidden>
+    <div class="head">
+      <div>
+        <h1 id="title"></h1>
+        <div id="short" class="copyrow"></div>
+      </div>
+      <div class="tabs" id="rangeTabs">
+        <button class="secondary" data-days="7">7 days</button>
+        <button class="secondary" data-days="30">30 days</button>
+        <button class="secondary" data-days="90">90 days</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Details</h2>
+        <label>Destination</label>
+        <div id="destView" class="dest"></div>
+        <div id="destEdit" hidden>
+          <div class="copyrow"><input id="destInput" type="url"><button id="saveDest">Save</button><button id="cancelDest" class="secondary">Cancel</button></div>
+        </div>
+        <button id="editDest" class="secondary" style="margin-top:6px" hidden>Change destination</button>
+        <label>Created</label><div id="created"></div>
+        <div id="ownerBox" hidden>
+          <label>Share link <span class="hint">(read-only stats for this code, no password)</span></label>
+          <div class="copyrow"><input id="shareUrl" readonly><button class="secondary" id="copyShare">Copy</button></div>
+          <div class="btns"><button class="secondary" id="resetShare">Reset share link</button><button class="danger" id="del">Delete this code</button></div>
+        </div>
+      </section>
+      <section class="card" style="text-align:center">
+        <h2 style="text-align:left">QR code</h2>
+        <div id="qr" style="display:flex; justify-content:center"></div>
+        <div class="btns" style="justify-content:center; margin-top:10px">
+          <button id="png" class="secondary">Download PNG</button><button id="svg" class="secondary">Download SVG</button>
+        </div>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2>Link analytics</h2>
+      <div class="nums">
+        <div class="num"><b id="nTotal">0</b><span>engagements (scans)</span></div>
+        <div class="num"><b id="nChange">–</b><span>vs previous period</span></div>
+        <div class="num"><b id="nUnique">0</b><span>unique visitors (counted per day)</span></div>
+        <div class="num"><b id="nAll">0</b><span>all-time scans</span></div>
+      </div>
+      <div class="chart" id="chart"></div>
+      <div class="legend"><span><i></i>This period</span><span><i class="p"></i>Previous period</span></div>
+    </section>
+
+    <section class="card"><div class="cols" id="geo"></div></section>
+    <section class="card"><div class="cols" id="tech"></div></section>
+
+    <div class="grid" style="grid-template-columns:1fr 1fr">
+      <section class="card"><h2>Latest scans</h2><div id="recent" class="log"></div></section>
+      <section class="card"><h2>Changes</h2><div id="history" class="log"></div></section>
+    </div>
+  </div>
+</main>
+
+<script>
+const params = new URLSearchParams(location.search);
+const id = params.get("l") || "", token = params.get("t") || "";
+let days = 30, data = null, qr = null;
+
+function path(extra = "") {
+  return `/api/link?l=${encodeURIComponent(id)}${token ? "&t=" + encodeURIComponent(token) : ""}&days=${days}${extra}`;
+}
+
+function chartSVG(series) {
+  const W = 800, H = 220, pad = { l: 34, r: 8, t: 10, b: 22 };
+  const max = Math.max(1, ...series.map(s => Math.max(s.v, s.p)));
+  const x = i => pad.l + (series.length < 2 ? 0 : i * (W - pad.l - pad.r) / (series.length - 1));
+  const y = v => pad.t + (H - pad.t - pad.b) * (1 - v / max);
+  const line = key => series.map((s, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(s[key]).toFixed(1)}`).join(" ");
+  const ticks = [0, 0.5, 1].map(f => { const v = Math.round(max * f); return `<text x="${pad.l - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="#6b7280">${v}</text><line x1="${pad.l}" x2="${W - pad.r}" y1="${y(v)}" y2="${y(v)}" stroke="#e5e7eb"/>`; }).join("");
+  const dots = series.map((s, i) => `<circle cx="${x(i)}" cy="${y(s.v)}" r="${series.length > 45 ? 6 : 4}" fill="transparent" stroke="none"><title>${s.d}: ${s.v} scans, ${s.u} unique</title></circle>`).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${ticks}
+    <path d="${line("p")}" fill="none" stroke="#9ca3af" stroke-width="2" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"/>
+    <path d="${line("v")}" fill="none" stroke="#4f46e5" stroke-width="3" vector-effect="non-scaling-stroke"/>${dots}
+    <text x="${pad.l}" y="${H - 5}" font-size="11" fill="#6b7280">${series[0].d}</text>
+    <text x="${W - pad.r}" y="${H - 5}" font-size="11" fill="#6b7280" text-anchor="end">${series[series.length - 1].d}</text></svg>`;
+}
+
+function render() {
+  const { link, range, recent, history } = data;
+  $("login").hidden = true; $("page").hidden = false;
+  document.title = (link.title || link.slug) + " – QR Code Dashboard";
+  $("title").textContent = link.title || link.slug;
+  $("short").innerHTML = `<a href="${esc(link.shortUrl)}" target="_blank" rel="noopener">${esc(link.shortUrl.replace(/^https?:\/\//, ""))}</a> <button class="secondary" id="copyShort">Copy</button>`;
+  $("copyShort").onclick = e => copyText(link.shortUrl, e.target);
+  $("destView").textContent = link.dest;
+  $("created").textContent = link.created ? new Date(link.created).toLocaleString() : "";
+  $("editDest").hidden = !link.owner || !$("destEdit").hidden;
+  $("ownerBox").hidden = !link.owner;
+  if (link.owner) $("shareUrl").value = `${location.origin}/dashboard?l=${encodeURIComponent(id)}&t=${link.token}`;
+  document.querySelectorAll("#rangeTabs button").forEach(b => b.style.background = Number(b.dataset.days) === days ? "#e0e1fb" : "#fff");
+  $("listLink").hidden = !link.owner;
+
+  if (!qr) qr = makeQR($("qr"));
+  qr.update(link.shortUrl, link.design);
+
+  $("nTotal").textContent = range.total;
+  $("nUnique").textContent = range.unique;
+  $("nAll").textContent = link.total;
+  const diff = range.prevTotal ? Math.round((range.total - range.prevTotal) / range.prevTotal * 100) : null;
+  $("nChange").className = diff === null ? "" : diff >= 0 ? "up" : "down";
+  $("nChange").textContent = diff === null ? (range.total ? "new" : "–") : (diff >= 0 ? "+" : "") + diff + "%";
+  $("chart").innerHTML = chartSVG(range.series);
+  $("geo").innerHTML = breakdown("Countries", range.countries) + breakdown("Cities", range.cities);
+  $("tech").innerHTML = breakdown("Devices", range.devices) + breakdown("Operating system", range.os) + breakdown("Browser", range.browsers) + breakdown("Came from", range.referrers);
+  $("recent").innerHTML = recent.map(r => `<div>${esc(new Date(r.t).toLocaleString())} · ${esc(r.device)} · ${esc(r.os)} · ${esc(r.browser)} · ${esc([r.city, r.country].filter(Boolean).join(", "))}</div>`).join("") || '<div class="empty">No scans yet</div>';
+  $("history").innerHTML = history.map(h => {
+    const when = esc(new Date(h.t).toLocaleString());
+    if (h.type === "created") return `<div><b>Link created</b> · ${when}<br><span class="dest">${esc(h.dest)}</span></div>`;
+    if (h.type === "destination") return `<div><b>Destination changed</b> · ${when}<br><span class="dest">${esc(h.from)} → ${esc(h.dest)}</span></div>`;
+    return `<div><b>Share link reset</b> · ${when}</div>`;
+  }).join("");
+}
+
+async function load() {
+  $("err").textContent = "";
+  try { data = await api(path()); render(); }
+  catch (e) {
+    $("page").hidden = true;
+    if (e.status === 401 && !token) { $("login").hidden = false; if (Auth.get()) $("err").textContent = e.message; Auth.clear(); }
+    else $("err").textContent = e.message;
+  }
+}
+
+$("login").addEventListener("submit", e => { e.preventDefault(); Auth.set($("pw").value); load(); });
+document.querySelectorAll("#rangeTabs button").forEach(b => b.onclick = () => { days = Number(b.dataset.days); load(); });
+$("editDest").onclick = () => { $("destInput").value = data.link.dest; $("destEdit").hidden = false; $("editDest").hidden = true; };
+$("cancelDest").onclick = () => { $("destEdit").hidden = true; $("editDest").hidden = false; };
+$("saveDest").onclick = async () => {
+  try { await api(path(), { method: "PATCH", body: { dest: $("destInput").value.trim() } }); $("destEdit").hidden = true; await load(); }
+  catch (e) { $("err").textContent = e.message; }
+};
+$("copyShare").onclick = e => copyText($("shareUrl").value, e.target);
+$("resetShare").onclick = async () => {
+  if (!confirm("Reset the share link? The old one will stop working.")) return;
+  try { await api(path(), { method: "PATCH", body: { resetToken: true } }); await load(); } catch (e) { $("err").textContent = e.message; }
+};
+$("del").onclick = async () => {
+  if (!confirm("Delete this QR code? Anyone scanning it will see an error, and its stats are removed.")) return;
+  try { await api(path(), { method: "DELETE" }); location.href = "/stats"; } catch (e) { $("err").textContent = e.message; }
+};
+$("png").onclick = () => qr.download("png", data.link.slug);
+$("svg").onclick = () => qr.download("svg", data.link.slug);
+
+if (!id) $("err").textContent = "No code selected.";
+else if (token || Auth.get()) load();
+else $("login").hidden = false;
+</script>
+</body>
+</html>

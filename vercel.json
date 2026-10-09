@@ -1,6 +1,7 @@
 {
+  "cleanUrls": true,
   "rewrites": [
     { "source": "/go/:slug", "destination": "/api/go?slug=:slug" },
-    { "source": "/go", "destination": "/api/go" }
+    { "source": "/:slug([A-Za-z0-9_-]+)", "destination": "/api/go?slug=:slug" }
   ]
 }

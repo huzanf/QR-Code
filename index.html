@@ -4,66 +4,55 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Custom QR Code Maker</title>
+<link rel="stylesheet" href="/app.css">
 <script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.6.0-rc.1/lib/qr-code-styling.js"></script>
-<style>
-  :root { --bg:#f5f6f8; --card:#fff; --text:#1c1e21; --muted:#6b7280; --accent:#4f46e5; --border:#d8dbe0; }
-  * { box-sizing: border-box; }
-  body { margin:0; font:16px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--text); }
-  main { max-width:900px; margin:0 auto; padding:24px 16px; }
-  h1 { margin:0 0 16px; font-size:1.6rem; }
-  .grid { display:grid; grid-template-columns:1fr 340px; gap:20px; }
-  @media (max-width:760px) { .grid { grid-template-columns:1fr; } }
-  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; }
-  label { display:block; font-weight:600; font-size:.9rem; margin:14px 0 4px; }
-  label:first-child { margin-top:0; }
-  input[type=url], input[type=text], select { width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font:inherit; }
-  input[type=color] { width:56px; height:36px; border:1px solid var(--border); border-radius:6px; padding:2px; background:#fff; }
-  input[type=range] { width:100%; }
-  .row { display:flex; gap:16px; flex-wrap:wrap; }
-  .row > div { flex:1; min-width:120px; }
-  .hint { color:var(--muted); font-size:.8rem; margin-top:4px; }
-  #preview { display:flex; flex-direction:column; align-items:center; gap:14px; }
-  #qr canvas, #qr svg { max-width:100%; height:auto; border-radius:8px; }
-  .btns { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
-  button { font:inherit; font-weight:600; padding:10px 16px; border-radius:8px; border:1px solid var(--accent); background:var(--accent); color:#fff; cursor:pointer; }
-  button.secondary { background:#fff; color:var(--accent); }
-  button:disabled { opacity:.5; cursor:not-allowed; }
-  [hidden] { display:none !important; }
-  pre { background:#f0f1f4; padding:8px 10px; border-radius:8px; overflow-x:auto; font-size:.8rem; margin:6px 0 0; }
-  #err { color:#b91c1c; font-size:.85rem; min-height:1.2em; }
-</style>
+<script src="/common.js"></script>
 </head>
 <body>
 <main>
   <h1>Custom QR Code Maker</h1>
-  <p style="margin:-8px 0 16px"><a href="/stats.html">View scan stats &rarr;</a></p>
+  <nav><a href="/stats">My QR codes &amp; stats</a></nav>
+
   <div class="grid">
-    <section class="card">
+    <section class="card" style="margin-top:0">
       <label for="mode">Link type</label>
       <select id="mode">
-        <option value="direct">Direct (QR contains the URL; can't be changed later)</option>
-        <option value="redirect">Redirectable (change the destination any time)</option>
+        <option value="tracked">Tracked (short link, scan stats, editable destination)</option>
+        <option value="direct">Direct (QR contains the URL; no stats, can't be changed)</option>
       </select>
 
-      <div id="directBox">
+      <div id="directBox" hidden>
         <label for="url">URL</label>
-        <input id="url" type="url" placeholder="https://example.com" value="https://example.com">
+        <input id="url" type="url" placeholder="https://example.com">
       </div>
 
-      <div id="redirectBox" hidden>
-        <label for="site">Your deployed site address</label>
-        <input id="site" type="url" placeholder="https://yourapp.vercel.app">
-        <label for="slug">Short name for this QR code</label>
-        <input id="slug" type="text" placeholder="menu" pattern="[a-z0-9-]+">
+      <div id="trackedBox">
+        <label for="pw">Admin password</label>
+        <input id="pw" type="password" autocomplete="current-password" placeholder="Your STATS_TOKEN password">
+        <div class="hint">Needed to create tracked codes. Kept only until you close this tab.</div>
+
         <label for="dest">Destination URL</label>
-        <input id="dest" type="url" placeholder="https://example.com/menu">
-        <div class="hint">Add this line to <code>links.json</code> and push to publish or later change it:</div>
-        <pre id="snippet"></pre>
+        <input id="dest" type="url" placeholder="https://www.example.com/page">
+
+        <div class="row">
+          <div>
+            <label for="host">Short link domain</label>
+            <select id="host"></select>
+          </div>
+          <div>
+            <label for="slug">Custom back-half <span class="hint">(optional)</span></label>
+            <input id="slug" type="text" placeholder="auto" maxlength="60">
+          </div>
+        </div>
+        <div class="hint">Manage domains on the <a href="/stats">My QR codes</a> page.</div>
+
+        <label for="title">Title <span class="hint">(optional, for your reference)</span></label>
+        <input id="title" type="text" maxlength="120" placeholder="e.g. XYZ Indoor Mania poster">
       </div>
 
       <label for="logo">Your custom design (logo shown in the center)</label>
       <input id="logo" type="file" accept="image/*">
-      <div class="hint">PNG, JPG, or SVG. Stays on your device. <a href="#" id="clearLogo">Remove</a></div>
+      <div class="hint">PNG, JPG, or SVG. <a href="#" id="clearLogo">Remove</a></div>
 
       <label for="logoSize">Logo size</label>
       <input id="logoSize" type="range" min="0.15" max="0.45" step="0.01" value="0.35">
@@ -72,7 +61,6 @@
         <div><label for="fg">Dot color</label><input id="fg" type="color" value="#1c1e21"></div>
         <div><label for="bg">Background</label><input id="bg" type="color" value="#ffffff"></div>
       </div>
-
       <div class="row">
         <div>
           <label for="dots">Dot style</label>
@@ -96,86 +84,126 @@
       </div>
     </section>
 
-    <section class="card" id="preview">
-      <div id="qr"></div>
-      <div id="err"></div>
-      <div class="btns">
-        <button id="png">Download PNG</button>
-        <button id="svg" class="secondary">Download SVG</button>
+    <section>
+      <div class="card" style="margin-top:0; text-align:center">
+        <div id="qr" style="display:flex; justify-content:center"></div>
+        <div id="shortPreview" class="dest" style="margin:8px 0"></div>
+        <div id="err" class="err"></div>
+        <div class="btns" style="justify-content:center">
+          <button id="create">Create tracked QR code</button>
+          <button id="png" class="secondary">Download PNG</button>
+          <button id="svg" class="secondary">Download SVG</button>
+        </div>
+      </div>
+
+      <div id="done" class="card" hidden>
+        <h2>QR code created</h2>
+        <label>Short link</label>
+        <div class="copyrow"><input id="outShort" readonly><button class="secondary" data-copy="outShort">Copy</button></div>
+        <label>Your dashboard</label>
+        <div class="copyrow"><input id="outDash" readonly><button class="secondary" data-copy="outDash">Copy</button></div>
+        <label>Share link <span class="hint">(read-only stats, no password)</span></label>
+        <div class="copyrow"><input id="outShare" readonly><button class="secondary" data-copy="outShare">Copy</button></div>
+        <div class="btns"><a id="openDash" class="btn" href="#">Open dashboard</a><button id="another" class="secondary">Make another</button></div>
       </div>
     </section>
   </div>
 </main>
 
 <script>
-const $ = id => document.getElementById(id);
 let logoData = "";
+let previewSlug = "";
+let created = false;
+const qr = makeQR($("qr"));
 
-const qr = new QRCodeStyling({
-  width: 300, height: 300, type: "canvas", margin: 10,
-  qrOptions: { errorCorrectionLevel: "H" }, // high redundancy so a center logo still scans
-  imageOptions: { crossOrigin: "anonymous", margin: 6, imageSize: 0.35 },
-});
-qr.append($("qr"));
-
-function isValidUrl(s) {
-  try { const u = new URL(s); return u.protocol === "http:" || u.protocol === "https:"; }
-  catch { return false; }
+function randomSlug() {
+  const a = "abcdefghjkmnpqrstuvwxyz23456789";
+  return Array.from(crypto.getRandomValues(new Uint8Array(7)), b => a[b % a.length]).join("");
 }
-
-function redirectData() {
-  const site = $("site").value.trim().replace(/\/+$/, "");
-  const slug = $("slug").value.trim();
-  const dest = $("dest").value.trim();
-  const slugOk = /^[a-z0-9-]+$/.test(slug);
-  $("snippet").textContent = slugOk ? `"${slug}": "${dest || "https://..."}",` : "";
-  if (site && !isValidUrl(site)) return { error: "Site address must start with http:// or https://" };
-  if (slug && !slugOk) return { error: "Short name: lowercase letters, numbers and dashes only" };
-  if (dest && !isValidUrl(dest)) return { error: "Destination must start with http:// or https://" };
-  if (!site || !slugOk || !dest) return { error: "" };
-  return { data: `${site}/go/${slug}` };
+function design() {
+  return { fg: $("fg").value, bg: $("bg").value, dots: $("dots").value, corners: $("corners").value, logoSize: parseFloat($("logoSize").value), logo: logoData };
 }
+const tracked = () => $("mode").value === "tracked";
 
-function update() {
-  const redirect = $("mode").value === "redirect";
-  $("directBox").hidden = redirect;
-  $("redirectBox").hidden = !redirect;
-  let data, error = "";
-  if (redirect) {
-    ({ data, error } = redirectData());
+function refresh() {
+  $("directBox").hidden = tracked();
+  $("trackedBox").hidden = !tracked();
+  $("create").hidden = !tracked() || created;
+  $("png").hidden = $("svg").hidden = tracked() && !created;
+  if (created) return;
+  let data = "", error = "";
+  if (tracked()) {
+    const host = $("host").value;
+    const slug = $("slug").value.trim() || previewSlug;
+    data = host ? `https://${host}/${slug}` : "";
+    $("shortPreview").textContent = data;
+    const dest = $("dest").value.trim();
+    if (dest && !isValidUrl(dest)) error = "Destination must start with http:// or https://";
+    $("create").disabled = !(host && dest && !error);
   } else {
     const url = $("url").value.trim();
-    if (isValidUrl(url)) data = url;
-    else if (url) error = "Enter a full URL starting with http:// or https://";
+    $("shortPreview").textContent = "";
+    if (isValidUrl(url)) data = url; else if (url) error = "Enter a full URL starting with http:// or https://";
+    $("png").disabled = $("svg").disabled = !data;
   }
-  $("err").textContent = error || "";
-  $("png").disabled = $("svg").disabled = !data;
-  if (!data) return;
-  qr.update({
-    data,
-    image: logoData || undefined,
-    dotsOptions: { color: $("fg").value, type: $("dots").value },
-    backgroundOptions: { color: $("bg").value },
-    cornersSquareOptions: { color: $("fg").value, type: $("corners").value },
-    cornersDotOptions: { color: $("fg").value },
-    imageOptions: { crossOrigin: "anonymous", margin: 6, imageSize: parseFloat($("logoSize").value) },
-  });
+  $("err").textContent = error;
+  if (data) qr.update(data, design());
+}
+
+async function loadDomains() {
+  const pw = $("pw").value;
+  if (!pw) return;
+  Auth.set(pw);
+  try {
+    const d = await api("/api/domains");
+    $("host").innerHTML = [d.primary, ...d.domains].map(h => `<option value="${esc(h)}">${esc(h)}</option>`).join("");
+    $("err").textContent = "";
+  } catch (e) {
+    $("host").innerHTML = "";
+    $("err").textContent = e.message;
+  }
+  refresh();
 }
 
 $("logo").addEventListener("change", e => {
   const f = e.target.files[0];
   if (!f) return;
   const r = new FileReader();
-  r.onload = () => { logoData = r.result; update(); };
+  r.onload = async () => { logoData = await scaleLogo(r.result); refresh(); };
   r.readAsDataURL(f);
 });
-$("clearLogo").addEventListener("click", e => {
-  e.preventDefault(); logoData = ""; $("logo").value = ""; update();
-});
-["mode","url","site","slug","dest","fg","bg","dots","corners","logoSize"].forEach(id => $(id).addEventListener("input", update));
-$("png").onclick = () => qr.download({ name: "qr-code", extension: "png" });
-$("svg").onclick = () => qr.download({ name: "qr-code", extension: "svg" });
-update();
+$("clearLogo").addEventListener("click", e => { e.preventDefault(); logoData = ""; $("logo").value = ""; refresh(); });
+["mode", "url", "dest", "host", "slug", "fg", "bg", "dots", "corners", "logoSize"].forEach(id => $(id).addEventListener("input", refresh));
+$("pw").addEventListener("change", loadDomains);
+
+$("create").onclick = async () => {
+  $("create").disabled = true;
+  $("err").textContent = "";
+  try {
+    const r = await api("/api/links", { method: "POST", body: {
+      dest: $("dest").value.trim(), host: $("host").value, slug: $("slug").value.trim(), title: $("title").value.trim(), design: design() } });
+    created = true;
+    qr.update(r.shortUrl, design());
+    $("shortPreview").textContent = r.shortUrl;
+    $("outShort").value = r.shortUrl; $("outDash").value = r.dashboardUrl; $("outShare").value = r.shareUrl;
+    $("openDash").href = r.dashboardUrl;
+    $("done").hidden = false;
+  } catch (e) {
+    $("err").textContent = e.message;
+    $("create").disabled = false;
+  }
+  refresh();
+};
+$("another").onclick = () => {
+  created = false; previewSlug = randomSlug(); $("done").hidden = true; $("slug").value = ""; $("dest").value = ""; $("title").value = ""; refresh();
+};
+document.querySelectorAll("[data-copy]").forEach(b => b.onclick = () => copyText($(b.dataset.copy).value, b));
+$("png").onclick = () => qr.download("png");
+$("svg").onclick = () => qr.download("svg");
+
+previewSlug = randomSlug();
+$("pw").value = Auth.get();
+if ($("pw").value) loadDomains(); else refresh();
 </script>
 </body>
 </html>
