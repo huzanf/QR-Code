@@ -17,7 +17,7 @@ module.exports = async (req, res) => {
       const links = ids.map((id, i) => {
         const h = S.toObject(rows[i]);
         const slash = id.indexOf("/");
-        return { id, host: id.slice(0, slash), slug: id.slice(slash + 1), shortUrl: `${S.origin(id.slice(0, slash))}/${id.slice(slash + 1)}`,
+        return { id, host: id.slice(0, slash), slug: id.slice(slash + 1), shortUrl: `${S.origin(id.slice(0, slash), req)}/${id.slice(slash + 1)}`,
           dest: h.dest, title: h.title || "", created: h.created, last: h.last || null, total: Number(h.total || 0) };
       }).sort((a, b) => String(b.created).localeCompare(String(a.created)));
       return res.status(200).json({ links, primary });
@@ -57,8 +57,8 @@ module.exports = async (req, res) => {
       if (!made) return res.status(500).json({ error: "Couldn't find a free short name. Try again." });
 
       const id = `${host}/${slug}`;
-      const dash = `${S.origin(primary)}/dashboard?l=${encodeURIComponent(id)}`;
-      return res.status(201).json({ id, host, slug, shortUrl: `${S.origin(host)}/${slug}`, dashboardUrl: dash, shareUrl: `${dash}&t=${made.token}` });
+      const dash = `${S.origin(primary, req)}/dashboard?l=${encodeURIComponent(id)}`;
+      return res.status(201).json({ id, host, slug, shortUrl: `${S.origin(host, req)}/${slug}`, dashboardUrl: dash, shareUrl: `${dash}&t=${made.token}` });
     }
     res.setHeader("Allow", "GET, POST");
     return res.status(405).json({ error: "Method not allowed" });

@@ -93,7 +93,7 @@ module.exports = async (req, res) => {
 
     const slug = id.slice(slash + 1), host = id.slice(0, slash);
     return res.status(200).json({
-      link: { id, host, slug, shortUrl: `${S.origin(host)}/${slug}`, dest: h.dest, title: h.title || "", created: h.created,
+      link: { id, host, slug, shortUrl: `${S.origin(host, req)}/${slug}`, dest: h.dest, title: h.title || "", created: h.created,
         last: h.last || null, total: Number(h.total || 0), design, owner, token: owner ? h.token : undefined },
       range: {
         days, total: agg.total, prevTotal: prevTotals.reduce((a, b) => a + b, 0), unique: uniques.reduce((a, b) => a + b, 0),
